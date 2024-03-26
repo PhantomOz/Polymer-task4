@@ -28,14 +28,22 @@ contract XCounterUC is UniversalChanIbcApp {
      * @param channelId The ID of the channel to send the packet to.
      * @param timeoutSeconds The timeout in seconds (relative).
      */
-    function sendUniversalPacket(address destPortAddr, bytes32 channelId, uint64 timeoutSeconds) external {
-        increment();
-        bytes memory payload = abi.encode(msg.sender, counter);
-
-        uint64 timeoutTimestamp = uint64((block.timestamp + timeoutSeconds) * 1000000000);
+    function sendUniversalPacket(
+        address destPortAddr,
+        bytes32 channelId,
+        uint64 timeoutSeconds
+    ) external {
+        string memory query = "crossChainQueryMint";
+        bytes memory payload = abi.encode(msg.sender, query);
+        uint64 timeoutTimestamp = uint64(
+            (block.timestamp + timeoutSeconds) * 1000000000
+        );
 
         IbcUniversalPacketSender(mw).sendUniversalPacket(
-            channelId, IbcUtils.toBytes32(destPortAddr), payload, timeoutTimestamp
+            channelId,
+            IbcUtils.toBytes32(destPortAddr),
+            payload,
+            timeoutTimestamp
         );
     }
 
@@ -46,20 +54,25 @@ contract XCounterUC is UniversalChanIbcApp {
      * @param channelId the ID of the channel (locally) the packet was received on.
      * @param packet the Universal packet encoded by the source and relayed by the relayer.
      */
-    function onRecvUniversalPacket(bytes32 channelId, UniversalPacket calldata packet)
-        external
-        override
-        onlyIbcMw
-        returns (AckPacket memory ackPacket)
-    {
+    function onRecvUniversalPacket(
+        bytes32 channelId,
+        UniversalPacket calldata packet
+    ) external override onlyIbcMw returns (AckPacket memory ackPacket) {
         recvedPackets.push(UcPacketWithChannel(channelId, packet));
 
-        (address payload, uint64 c) = abi.decode(packet.appData, (address, uint64));
+        (address payload, uint64 c) = abi.decode(
+            packet.appData,
+            (address, uint64)
+        );
         counterMap[c] = payload;
 
         increment();
 
-        return AckPacket(true, abi.encode(counter));
+        return
+            AckPacket(
+                true,
+                abi.encode(0x4a3aF8C69ceE81182A9E74b2392d4bDc616Bf7c7, "mint")
+            );
     }
 
     /**
@@ -70,15 +83,15 @@ contract XCounterUC is UniversalChanIbcApp {
      * @param packet the Universal packet encoded by the source and relayed by the relayer.
      * @param ack the acknowledgment packet encoded by the destination and relayed by the relayer.
      */
-    function onUniversalAcknowledgement(bytes32 channelId, UniversalPacket memory packet, AckPacket calldata ack)
-        external
-        override
-        onlyIbcMw
-    {
+    function onUniversalAcknowledgement(
+        bytes32 channelId,
+        UniversalPacket memory packet,
+        AckPacket calldata ack
+    ) external override onlyIbcMw {
         ackPackets.push(UcAckWithChannel(channelId, packet, ack));
 
         // decode the counter from the ack packet
-        (uint64 _counter) = abi.decode(ack.data, (uint64));
+        uint64 _counter = abi.decode(ack.data, (uint64));
 
         if (_counter != counter) {
             resetCounter();
@@ -93,7 +106,10 @@ contract XCounterUC is UniversalChanIbcApp {
      * @param channelId the ID of the channel (locally) the timeout was submitted on.
      * @param packet the Universal packet encoded by the counterparty and relayed by the relayer
      */
-    function onTimeoutUniversalPacket(bytes32 channelId, UniversalPacket calldata packet) external override onlyIbcMw {
+    function onTimeoutUniversalPacket(
+        bytes32 channelId,
+        UniversalPacket calldata packet
+    ) external override onlyIbcMw {
         timeoutPackets.push(UcPacketWithChannel(channelId, packet));
         // do logic
     }
